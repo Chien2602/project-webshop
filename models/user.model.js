@@ -16,6 +16,9 @@ const userSchema = new mongoose.Schema(
       type: String,
       required: true,
     },
+    avatar: {
+      type: String,
+    },
     phone: {
       type: String,
       required: true,
@@ -42,6 +45,16 @@ const userSchema = new mongoose.Schema(
     isDeleted: {
       type: Boolean,
       default: false,
+    },
+    verified: {
+      type: Boolean,
+      default: false,
+    },
+    codeVerify: {
+      type: String,
+    },
+    codeVerifyExpire: {
+      type: String,
     },
     createdBy: {
       type: mongoose.Schema.Types.ObjectId,
