@@ -9,7 +9,6 @@ const productSchema = new mongoose.Schema({
     slug: {
         type: String,
         required: true,
-        default: slugify(this.name, { lower: true, strict: true }),
         unique: true,
     },
     description: {
@@ -68,14 +67,23 @@ const productSchema = new mongoose.Schema({
         type: mongoose.Schema.Types.ObjectId,
         ref: "User",
     },
-}, { timestamps: true });
+}, { 
+    timestamps: true,
+});
 
-productSchema.virtual("isNew").get(function () {
+productSchema.virtual("isNewProduct").get(function () {
     const oneWeekAgo = Date.now() - 7 * 24 * 60 * 60 * 1000;
     return this.createdAt.getTime() > oneWeekAgo;
 });
 
 productSchema.pre("save", function (next) {
+    if (this.isModified('name')) {
+        this.slug = slugify(this.name, { 
+            lower: true, 
+            strict: true,
+            locale: 'vi'
+        });
+    }
     this.discountPrice = this.price - (this.price * this.discount / 100);
     next();
 });

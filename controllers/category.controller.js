@@ -1,4 +1,5 @@
 const Category = require("../models/category.model");
+const Product = require("../models/product.model");
 
 const getAllCategories = async (req, res) => {
     try {
@@ -132,4 +133,46 @@ const softDeleteCategory = async (req, res) => {
     }
 }
 
-module.exports = { getAllCategories, getCategoryById, createCategory, updateCategory, handleDeleteCategory, getProductsByCategory };
+const getProductsByCategory = async (req, res) => {
+    try {
+        const { id } = req.params;
+        const category = await Category.findById(id);
+        if (!category) {
+            return res.status(404).json({
+                success: false,
+                message: "Category not found",
+            });
+        }
+
+        const products = await Product.find({ 
+            categoryId: id,
+            isDeleted: false,
+            isActive: true
+        });
+
+        res.status(200).json({
+            success: true,
+            message: "Products fetched successfully",
+            data: {
+                category,
+                products
+            }
+        });
+    } catch (error) {
+        res.status(500).json({
+            success: false,
+            message: "Internal server error",
+            error: error.message,
+        });
+    }
+};
+
+module.exports = { 
+    getAllCategories, 
+    getCategoryById, 
+    createCategory, 
+    updateCategory, 
+    handleDeleteCategory, 
+    softDeleteCategory,
+    getProductsByCategory 
+};

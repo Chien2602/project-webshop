@@ -3,9 +3,10 @@ const slugify = require("slugify");
 
 const userSchema = new mongoose.Schema(
   {
-    fullname: {
+    username: {
       type: String,
       required: true,
+      unique: true,
     },
     email: {
       type: String,
@@ -16,24 +17,25 @@ const userSchema = new mongoose.Schema(
       type: String,
       required: true,
     },
+    fullname: {
+      type: String,
+    },
     avatar: {
       type: String,
+      default: "",
     },
     phone: {
       type: String,
-      required: true,
     },
     address: {
       type: String,
     },
-    role: {
+    roleId: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "Role",
     },
     slug: {
       type: String,
-      unique: true,
-      default: () => slugify(this.fullname, { lower: true }),
     },
     refreshToken: {
       type: String,
@@ -72,6 +74,26 @@ const userSchema = new mongoose.Schema(
   { timestamps: true }
 );
 
+userSchema.pre('save', async function (next) {
+  if (this.isModified('fullname')) {
+    const baseSlug = slugify(this.fullname, {
+      lower: true,
+      strict: true,
+      locale: 'vi',
+    });
+
+    let slug = baseSlug;
+    let count = 1;
+
+    while (await User.findOne({ slug, _id: { $ne: this._id } })) {
+      slug = `${baseSlug}-${count++}`;
+    }
+
+    this.slug = slug;
+  }
+
+  next();
+});
 const User = mongoose.model("User", userSchema, "users");
 
 module.exports = User;

@@ -16,15 +16,18 @@ const generateRefreshToken = (user) => {
 const googleStrategy = new GoogleStrategy({
     clientID: process.env.GOOGLE_CLIENT_ID,
     clientSecret: process.env.GOOGLE_CLIENT_SECRET,
-    callbackURL: "/auth/google/callback",
+    callbackURL: `http://localhost:3000/api/auth/google/callback`,
     passReqToCallback: true,
 }, async (request, accessToken, refreshToken, profile, done) => {
     try {
-        const user = await User.findOne({ email: profile.email });
+        const user = await User.findOne({ email: profile.emails[0].value });
         if (!user) {
             const newUser = await User.create({
-                email: profile.email,
+                fullname: profile.displayName,
+                email: profile.emails[0].value,
                 password: profile.id,
+                username: profile.emails[0].value.split('@')[0],
+                verified: true,
             });
             return done(null, { token: generateToken(newUser), refreshToken: generateRefreshToken(newUser) });
         }
@@ -37,15 +40,17 @@ const googleStrategy = new GoogleStrategy({
 const facebookStrategy = new FacebookStrategy({
     clientID: process.env.FACEBOOK_CLIENT_ID,
     clientSecret: process.env.FACEBOOK_CLIENT_SECRET,
-    callbackURL: "/auth/facebook/callback",
+    callbackURL: `http://localhost:3000/api/auth/facebook/callback`,
     passReqToCallback: true,
 }, async (request, accessToken, refreshToken, profile, done) => {
     try {
-        const user = await User.findOne({ email: profile.email });
+        const user = await User.findOne({ email: profile.emails[0].value });
         if (!user) {
             const newUser = await User.create({
-                email: profile.email,
+                fullname: profile.displayName,
+                email: profile.emails[0].value,
                 password: profile.id,
+                verified: true,
             });
             return done(null, { token: generateToken(newUser), refreshToken: generateRefreshToken(newUser) });
         }
@@ -69,4 +74,7 @@ passport.deserializeUser(deserializeUser); // Lấy user từ session
 passport.use("google", googleStrategy); // Sử dụng strategy cho Google
 passport.use("facebook", facebookStrategy); // Sử dụng strategy cho Facebook
 
-module.exports = passport;
+module.exports = {
+    googleStrategy,
+    facebookStrategy
+};

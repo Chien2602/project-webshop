@@ -1,6 +1,6 @@
 const express = require("express");
 const router = express.Router();
-const { createOrder, getOrderByUserId, updateOrder, deleteOrder, softDeleteOrder, hardDeleteOrder, handleDeleteOrder } = require("../controllers/order.controller");
+const { createOrder, getOrderByUserId, updateOrder, deleteOrder, softDeleteOrder, hardDeleteOrder } = require("../controllers/order.controller");
 const { verifyUser, checkPermission } = require("../middlewares/auth.middleware");
 
 router.post("/", verifyUser, checkPermission("order:create"), createOrder);

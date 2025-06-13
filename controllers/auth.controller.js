@@ -1,18 +1,22 @@
 const User = require("../models/user.model");
+const Role = require("../models/role.model");
 const bcrypt = require("bcrypt");
 const jwt = require("jsonwebtoken");
+const slugify = require("slugify");
 
 const generateToken = (user) => {
-    return jwt.sign({ id: user._id, role: user.role, email: user.email, fullname: user.fullname }, process.env.JWT_SECRET, { expiresIn: "1h" });
+    return jwt.sign({ id: user._id, role: user.role, email: user.email, username: user.username }, process.env.JWT_SECRET, { expiresIn: "1h" });
 }
 
 const generateRefreshToken = (user) => {
-    return jwt.sign({ id: user._id, role: user.role, email: user.email, fullname: user.fullname }, process.env.JWT_SECRET, { expiresIn: "7d" });
+    return jwt.sign({ id: user._id, role: user.role, email: user.email, username: user.username }, process.env.JWT_SECRET, { expiresIn: "7d" });
 }
 
 const register = async (req, res) => {
     try {
-        const { fullname, email, password, phone, address} = req.body;
+        const { username, email, password, phone, address, fullname } = req.body;
+        
+        // Check if user exists
         const existingUser = await User.findOne({ email });
         if (existingUser) {
             return res.status(400).json({
@@ -20,16 +24,26 @@ const register = async (req, res) => {
                 message: "User already exists",
             });
         }
+        // Hash password
         const hashedPassword = await bcrypt.hash(password, 10);
         const newUser = await User.create({
-            fullname,
+            username,
             email,
             password: hashedPassword,
             phone,
             address,
-            createdBy: newUser._id,
-            updatedBy: newUser._id,
+            fullname: fullname || username, 
+            slug: slugify(fullname || username, { 
+                lower: true,
+                strict: true,
+                locale: 'vi'
+            })
         });
+        await User.findByIdAndUpdate(newUser._id, {
+            createdBy: newUser._id,
+            updatedBy: newUser._id
+        });
+
         res.status(201).json({
             success: true,
             message: "User created successfully",
@@ -47,19 +61,19 @@ const register = async (req, res) => {
 
 const login = async (req, res) => {
     try {
-        const { email, password } = req.body;
-        const user = await User.findOne({ email });
+        const { username, email, password } = req.body;
+        const user = await User.findOne({ $or: [{ username }, { email }] });
         if (!user) {
             return res.status(400).json({
                 success: false,
-                message: "User not found",
+                message: "Username or email is incorrect",
             });
         }
         const isPasswordValid = await bcrypt.compare(password, user.password);
         if (!isPasswordValid) {
             return res.status(400).json({
                 success: false,
-                message: "Invalid password",
+                message: "Username is incorrect",
             });
         }
         const token = generateToken(user);
@@ -68,7 +82,6 @@ const login = async (req, res) => {
         res.status(200).json({
             success: true,
             message: "Login successfully",
-            data: user,
             token: token,
             refreshToken: refreshToken,
         });
@@ -84,7 +97,7 @@ const login = async (req, res) => {
 const logout = async (req, res) => {
     try {
         const { refreshToken } = req.body;
-        const user = await User.findOne({ refreshToken });
+        const user = await User.findOne({ refreshToken: refreshToken });
         if (!user) {
             return res.status(400).json({
                 success: false,
@@ -293,8 +306,8 @@ const profile = async (req, res) => {
 const updateProfile = async (req, res) => {
     try {
         const { id } = req.user;
-        const { fullname, email, phone, address, avatar } = req.body;
-        const user = await User.findByIdAndUpdate(id, { fullname, email, phone, address, avatar }, { new: true });
+        const { username, email, phone, address, avatar } = req.body;
+        const user = await User.findByIdAndUpdate(id, { username, email, phone, address, avatar }, { new: true });
         if (!user) {
             return res.status(400).json({
                 success: false,

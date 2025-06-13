@@ -9,7 +9,6 @@ const categorySchema = new mongoose.Schema({
     slug: {
         type: String,
         required: true,
-        default: slugify(this.name, { lower: true, strict: true }),
         unique: true,
     },
     description: {
@@ -41,6 +40,18 @@ const categorySchema = new mongoose.Schema({
         ref: "User",
     },
 }, { timestamps: true });
+
+// Pre-save middleware to generate slug
+categorySchema.pre('save', function(next) {
+    if (this.isModified('name')) {
+        this.slug = slugify(this.name, { 
+            lower: true, 
+            strict: true,
+            locale: 'vi'
+        });
+    }
+    next();
+});
 
 const Category = mongoose.model("Category", categorySchema);
 module.exports = Category;

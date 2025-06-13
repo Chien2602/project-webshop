@@ -148,4 +148,4 @@ const hardDeleteOrder = async (req, res) => {
     }
 };
 
-module.exports = { createOrder, getOrderByUserId, updateOrder, deleteOrder, softDeleteOrder, hardDeleteOrder, handleDeleteOrder };
+module.exports = { createOrder, getOrderByUserId, updateOrder, deleteOrder, softDeleteOrder, hardDeleteOrder };
