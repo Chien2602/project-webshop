@@ -8,7 +8,10 @@ const getAllProducts = async (req, res) => {
         const skip = (page - 1) * limit;
         const total = await Product.countDocuments({ isDeleted: false, isActive: true });
         const totalPages = Math.ceil(total / limit);
-        const products = await Product.find({ isDeleted: false, isActive: true }).skip(skip).limit(limit);
+        const products = await Product.find({ isDeleted: false, isActive: true })
+            .populate('category', 'name')
+            .skip(skip)
+            .limit(limit);
         res.status(200).json({
             success: true,
             message: "Products fetched successfully",
@@ -32,7 +35,8 @@ const getAllProducts = async (req, res) => {
 const getProductById = async (req, res) => {
     try {
         const { id } = req.params;
-        const product = await Product.findById(id);
+        const product = await Product.findById(id)
+            .populate('category', 'name');
         if (!product) {
             return res.status(404).json({
                 success: false,
@@ -55,8 +59,33 @@ const getProductById = async (req, res) => {
 
 const createProduct = async (req, res) => {
     try {
-        const { name, description, thumbnail, category, price, discount, stock } = req.body;
-        const product = await Product.create({ name, description, thumbnail, category, price, discount, stock, createdBy: req.user.id });
+        const {
+            name,
+            description,
+            thumbnail,
+            category,
+            basePrice,
+            variants,
+            specifications,
+            discount,
+            isFeatured,
+            isNew
+        } = req.body;
+
+        const product = await Product.create({
+            name,
+            description,
+            thumbnail,
+            category,
+            basePrice,
+            variants,
+            specifications,
+            discount,
+            isFeatured,
+            isNew,
+            createdBy: req.user.id
+        });
+
         res.status(201).json({
             success: true,
             message: "Product created successfully",
@@ -74,14 +103,46 @@ const createProduct = async (req, res) => {
 const updateProduct = async (req, res) => {
     try {
         const { id } = req.params;
-        const { name, description, thumbnail, category, price, discount, stock } = req.body;
-        const product = await Product.findByIdAndUpdate(id, { name, description, thumbnail, category, price, discount, stock, updatedBy: req.user.id }, { new: true });
+        const {
+            name,
+            description,
+            thumbnail,
+            category,
+            basePrice,
+            variants,
+            specifications,
+            discount,
+            isFeatured,
+            isNew,
+            isActive
+        } = req.body;
+
+        const product = await Product.findByIdAndUpdate(
+            id,
+            {
+                name,
+                description,
+                thumbnail,
+                category,
+                basePrice,
+                variants,
+                specifications,
+                discount,
+                isFeatured,
+                isNew,
+                isActive,
+                updatedBy: req.user.id
+            },
+            { new: true }
+        );
+
         if (!product) {
             return res.status(404).json({
                 success: false,
                 message: "Product not found",
             });
         }
+
         res.status(200).json({
             success: true,
             message: "Product updated successfully",
@@ -123,7 +184,11 @@ const handleDeleteProduct = async (req, res) => {
 const softDeleteProduct = async (req, res) => {
     try {
         const { id } = req.params;
-        const product = await Product.findByIdAndUpdate(id, { isDeleted: true, deletedBy: req.user.id }, { new: true });
+        const product = await Product.findByIdAndUpdate(
+            id,
+            { isDeleted: true, deletedBy: req.user.id },
+            { new: true }
+        );
         if (!product) {
             return res.status(404).json({
                 success: false,
@@ -144,4 +209,110 @@ const softDeleteProduct = async (req, res) => {
     }
 };
 
-module.exports = { getAllProducts, getProductById, createProduct, updateProduct, handleDeleteProduct, softDeleteProduct };
+// Thêm các hàm mới để quản lý biến thể sản phẩm
+const addVariant = async (req, res) => {
+    try {
+        const { id } = req.params;
+        const variant = req.body;
+
+        const product = await Product.findByIdAndUpdate(
+            id,
+            { $push: { variants: variant } },
+            { new: true }
+        );
+
+        if (!product) {
+            return res.status(404).json({
+                success: false,
+                message: "Product not found",
+            });
+        }
+
+        res.status(200).json({
+            success: true,
+            message: "Variant added successfully",
+            data: product,
+        });
+    } catch (error) {
+        res.status(500).json({
+            success: false,
+            message: "Internal server error",
+            error: error.message,
+        });
+    }
+};
+
+const updateVariant = async (req, res) => {
+    try {
+        const { id, variantId } = req.params;
+        const updateData = req.body;
+
+        const product = await Product.findOneAndUpdate(
+            { _id: id, "variants._id": variantId },
+            { $set: { "variants.$": updateData } },
+            { new: true }
+        );
+
+        if (!product) {
+            return res.status(404).json({
+                success: false,
+                message: "Product or variant not found",
+            });
+        }
+
+        res.status(200).json({
+            success: true,
+            message: "Variant updated successfully",
+            data: product,
+        });
+    } catch (error) {
+        res.status(500).json({
+            success: false,
+            message: "Internal server error",
+            error: error.message,
+        });
+    }
+};
+
+const deleteVariant = async (req, res) => {
+    try {
+        const { id, variantId } = req.params;
+
+        const product = await Product.findByIdAndUpdate(
+            id,
+            { $pull: { variants: { _id: variantId } } },
+            { new: true }
+        );
+
+        if (!product) {
+            return res.status(404).json({
+                success: false,
+                message: "Product not found",
+            });
+        }
+
+        res.status(200).json({
+            success: true,
+            message: "Variant deleted successfully",
+            data: product,
+        });
+    } catch (error) {
+        res.status(500).json({
+            success: false,
+            message: "Internal server error",
+            error: error.message,
+        });
+    }
+};
+
+module.exports = {
+    getAllProducts,
+    getProductById,
+    createProduct,
+    updateProduct,
+    handleDeleteProduct,
+    softDeleteProduct,
+    addVariant,
+    updateVariant,
+    deleteVariant
+};

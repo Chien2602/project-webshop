@@ -1,6 +1,26 @@
 const mongoose = require("mongoose");
 const slugify = require("slugify");
 
+const variantSchema = new mongoose.Schema({
+    name: {
+        type: String,
+        required: true
+    },
+    price: {
+        type: Number,
+        required: true
+    },
+    stock: {
+        type: Number,
+        required: true,
+        default: 0
+    },
+    specifications: {
+        type: Object,
+        default: {}
+    }
+}, { _id: true });
+
 const productSchema = new mongoose.Schema({
     name: {
         type: String,
@@ -23,21 +43,20 @@ const productSchema = new mongoose.Schema({
         type: mongoose.Schema.Types.ObjectId,
         ref: "Category",
     },
-    price: {
+    basePrice: {
         type: Number,
         required: true,
+    },
+    variants: [variantSchema],
+    specifications: {
+        type: Object,
+        required: true,
+        default: {},
     },
     discount: {
         type: Number,
         required: true,
-    },
-    discountPrice: {
-        type: Number,
-        required: true,
-    },
-    stock: {
-        type: Number,
-        required: true,
+        default: 0
     },
     isFeatured: {
         type: Boolean,
@@ -76,15 +95,20 @@ productSchema.virtual("isNewProduct").get(function () {
     return this.createdAt.getTime() > oneWeekAgo;
 });
 
-productSchema.pre("save", function (next) {
+productSchema.pre("save", async function (next) {
     if (this.isModified('name')) {
         this.slug = slugify(this.name, { 
             lower: true, 
             strict: true,
             locale: 'vi'
         });
+        let counter = 1;
+        let originalSlug = this.slug;
+        while (await this.constructor.findOne({ slug: this.slug })) {
+            this.slug = `${originalSlug}-${counter}`;
+            counter++;
+        }
     }
-    this.discountPrice = this.price - (this.price * this.discount / 100);
     next();
 });
 

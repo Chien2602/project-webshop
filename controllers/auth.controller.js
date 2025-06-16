@@ -3,6 +3,7 @@ const Role = require("../models/role.model");
 const bcrypt = require("bcrypt");
 const jwt = require("jsonwebtoken");
 const slugify = require("slugify");
+const sendMail = require("../configs/sendMail.config");
 
 const generateToken = (user) => {
     return jwt.sign({ id: user._id, role: user.role, email: user.email, username: user.username }, process.env.JWT_SECRET, { expiresIn: "1h" });
@@ -14,9 +15,7 @@ const generateRefreshToken = (user) => {
 
 const register = async (req, res) => {
     try {
-        const { username, email, password, phone, address, fullname } = req.body;
-        
-        // Check if user exists
+        const { username, email, password } = req.body;
         const existingUser = await User.findOne({ email });
         if (existingUser) {
             return res.status(400).json({
@@ -24,29 +23,45 @@ const register = async (req, res) => {
                 message: "User already exists",
             });
         }
-        // Hash password
+        const code = Math.floor(100000 + Math.random() * 900000);
+        const codeVerifyExpire = new Date(Date.now() + 5 * 60 * 1000);
         const hashedPassword = await bcrypt.hash(password, 10);
         const newUser = await User.create({
             username,
             email,
             password: hashedPassword,
-            phone,
-            address,
-            fullname: fullname || username, 
-            slug: slugify(fullname || username, { 
+            slug: slugify(username, { 
                 lower: true,
                 strict: true,
                 locale: 'vi'
-            })
+            }),
+            codeVerify: code,
+            codeVerifyExpire: codeVerifyExpire,
+            verified: false,
         });
+
+        // Update createdBy and updatedBy after user creation
         await User.findByIdAndUpdate(newUser._id, {
             createdBy: newUser._id,
             updatedBy: newUser._id
         });
 
+        const emailSubject = "Xác nhận đăng ký tài khoản";
+        const emailText = `Mã xác nhận của bạn là: ${code}. Mã này sẽ hết hạn sau 5 phút.`;
+        const emailHtml = `
+            <h1>Xác nhận đăng ký tài khoản</h1>
+            <p>Xin chào ${username},</p>
+            <p>Cảm ơn bạn đã đăng ký tài khoản. Vui lòng sử dụng mã xác nhận sau để hoàn tất quá trình đăng ký:</p>
+            <h2 style="color: #4CAF50; font-size: 24px;">${code}</h2>
+            <p>Mã này sẽ hết hạn sau 5 phút.</p>
+            <p>Nếu bạn không yêu cầu mã này, vui lòng bỏ qua email này.</p>
+        `;
+        
+        await sendMail(email, emailSubject, emailText, emailHtml);
+
         res.status(201).json({
             success: true,
-            message: "User created successfully",
+            message: "User created successfully. Please check your email for verification code.",
             data: newUser,
             token: generateToken(newUser),
         });
@@ -149,7 +164,7 @@ const refreshToken = async (req, res) => {
 const verifyEmail = async (req, res) => {
     try {
         const { email, code } = req.body;
-        const user = await User.findOne({ email });
+        const user = await User.findOne({ email, verified: false });
         if (!user) {
             return res.status(400).json({
                 success: false,
@@ -166,33 +181,6 @@ const verifyEmail = async (req, res) => {
         res.status(200).json({
             success: true,
             message: "Email verified successfully",
-            data: user,
-        });
-    } catch (error) {
-        res.status(500).json({
-            success: false,
-            message: "Internal server error",
-            error: error.message,
-        });
-    }
-}
-
-const codeVerify = async (req, res) => {
-    try {
-        const { email } = req.body;
-        const user = await User.findOne({ email });
-        if (!user) {
-            return res.status(400).json({
-                success: false,
-                message: "User not found",
-            });
-        }
-        const code = Math.floor(100000 + Math.random() * 900000);
-        await User.findByIdAndUpdate(user._id, { codeVerify: code, codeVerifyExpire: "5 minutes" });
-        res.status(200).json({
-            success: true,
-            message: "Code verified successfully",
-            data: user,
         });
     } catch (error) {
         res.status(500).json({
@@ -215,15 +203,51 @@ const forgotPassword = async (req, res) => {
         }
         const code = Math.floor(100000 + Math.random() * 900000);
         await User.findByIdAndUpdate(user._id, { codeVerify: code, codeVerifyExpire: "5 minutes" });
+        const emailSubject = "Mã xác nhận đặt lại mật khẩu";
+        const emailText = `Mã xác nhận của bạn là: ${code}. Mã này sẽ hết hạn sau 5 phút.`;
+        const emailHtml = `
+            <h1>Mã xác nhận đặt lại mật khẩu</h1>
+            <p>Xin chào ${user.username},</p>
+            <p>Vui lòng sử dụng mã xác nhận sau để hoàn tất quá trình đặt lại mật khẩu:</p>
+            <h2 style="color: #4CAF50; font-size: 24px;">${code}</h2>
+            <p>Mã này sẽ hết hạn sau 5 phút.</p>
+            <p>Nếu bạn không yêu cầu mã này, vui lòng bỏ qua email này.</p>
+        `;
+        
+        await sendMail(email, emailSubject, emailText, emailHtml);
         res.status(200).json({
             success: true,
-            message: "Code verified successfully",
+            message: "Code verified successfully. Please check your email for verification code.",
             data: user,
         });
     } catch (error) {
         res.status(500).json({
             success: false,
             message: "Internal server error",
+            error: error.message,
+        });
+    }
+}
+
+const verifyForgotPassword = async (req, res) => {
+    try {
+        const { email, code } = req.body;
+        const user = await User.findOne({ email, codeVerify: code });
+        if (!user) {
+            return res.status(400).json({
+                success: false,
+                message: "User not found",
+            });
+        }
+        await User.findByIdAndUpdate(user._id, { codeVerify: null, codeVerifyExpire: null });
+        res.status(200).json({
+            success: true,
+            message: "Code verified successfully",
+        });
+    } catch (error) {
+        res.status(500).json({
+            success: false,
+            message: "Verify code failed",
             error: error.message,
         });
     }
@@ -334,7 +358,7 @@ module.exports = {
     logout,
     refreshToken,
     verifyEmail,
-    codeVerify,
+    verifyForgotPassword,
     forgotPassword,
     resetPassword,
     changePassword,

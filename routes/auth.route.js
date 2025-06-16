@@ -3,7 +3,7 @@ const router = express.Router();
 const passport = require("passport");
 const { verifyUser } = require("../middlewares/auth.middleware");
 
-const { login, register, logout, forgotPassword, resetPassword, verifyEmail, resendVerificationEmail, changePassword, updateProfile, deleteAccount } = require("../controllers/auth.controller");
+const { login, register, logout, forgotPassword, verifyForgotPassword, resetPassword, verifyEmail, resendVerificationEmail, changePassword, updateProfile, deleteAccount } = require("../controllers/auth.controller");
 const { googleStrategy, facebookStrategy } = require("../controllers/passport.controller");
 
 // Register the strategies with proper names
@@ -31,7 +31,8 @@ router.get("/facebook/callback", passport.authenticate("facebook", { failureRedi
 router.post("/login", login);
 router.post("/register", register);
 router.post("/logout", logout);
-router.post("/forgot-password",verifyUser, forgotPassword);
+router.post("/forgot-password", forgotPassword);
+router.post("/verify-forgot-password", verifyForgotPassword);
 router.post("/reset-password", resetPassword);
 router.post("/verify-email", verifyEmail);
 router.post("/change-password",verifyUser, changePassword);
